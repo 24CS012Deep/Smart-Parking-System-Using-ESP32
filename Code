@@ -1,0 +1,117 @@
+#include <ESP32Servo.h>
+#include <Wire.h>
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+
+// Pin definitions
+#define TRIG_PIN 5      // Ultrasonic sensor Trig
+#define ECHO_PIN 18     // Ultrasonic sensor Echo
+#define SERVO_PIN 4     // Servo motor control
+#define IR_SENSOR_1 13  // IR Sensor 1
+#define IR_SENSOR_2 14  // IR Sensor 2
+#define IR_SENSOR_3 27  // IR Sensor 3
+#define IR_SENSOR_4 26  // IR Sensor 4
+
+// Initialize LCD (update I2C address if necessary)
+hd44780_I2Cexp lcd; // Auto detect I2C address
+
+// Create a Servo object
+Servo parkingGate;
+                        
+void setup() {
+  // Initialize pins
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(IR_SENSOR_1, INPUT);
+  pinMode(IR_SENSOR_2, INPUT);
+  pinMode(IR_SENSOR_3, INPUT);
+  pinMode(IR_SENSOR_4, INPUT);
+
+  // Attach servo to pin
+  parkingGate.attach(SERVO_PIN);
+
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
+  // Initialize LCD with correct parameters
+  lcd.begin(16, 2); // 16 columns, 2 rows
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Smart Parking");
+  lcd.setCursor(0, 1);
+  lcd.print("System Ready!");
+  delay(2000);
+  lcd.clear();
+
+  // Close the parking gate initially
+  parkingGate.write(0); // Gate closed
+
+  // Print initial debug info
+  Serial.println("Setup completed. System ready.");
+}
+
+void loop() {
+  // Measure distance with ultrasonic sensor
+  long distance = measureDistance();
+
+  // Print distance to Serial Monitor for debugging
+  Serial.print("Measured distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  // Open gate if a car is detected
+  if (distance > 0 && distance < 20) { // Car detected within 20 cm
+    Serial.println("Car detected. Opening gate...");
+    lcd.setCursor(0, 0);
+    lcd.print("Car Detected!    ");
+    lcd.setCursor(0, 1);
+    lcd.print("Opening Gate...  ");
+    parkingGate.write(90); // Open gate to 90°
+    delay(5000);           // Keep gate open for 5 seconds
+    parkingGate.write(0);  // Close gate
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Gate Closed.     ");
+    delay(1000);
+    lcd.clear();
+  }
+
+  // Check and display parking slot statuses
+  checkParkingSlots();
+
+  delay(500); // Small delay before next loop
+}
+
+// Function to measure distance using ultrasonic sensor
+long measureDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  long distance = duration * 0.034 / 2; // Convert to cm
+  return distance;
+}
+
+// Function to check parking slot statuses and update LCD
+void checkParkingSlots() {
+  lcd.setCursor(0, 0);
+  lcd.print("Slots 1 & 2:     ");
+  lcd.setCursor(0, 1);
+  lcd.print("1:");
+  lcd.print(digitalRead(IR_SENSOR_1) == LOW ? "Occ " : "Avl ");
+  lcd.print("2:");
+  lcd.print(digitalRead(IR_SENSOR_2) == LOW ? "Occ " : "Avl ");
+  delay(2000);
+  
+  lcd.setCursor(0, 0);
+  lcd.print("Slots 3 & 4:     ");
+  lcd.setCursor(0, 1);
+  lcd.print("3:");
+  lcd.print(digitalRead(IR_SENSOR_3) == LOW ? "Occ " : "Avl ");
+  lcd.print("4:");
+  lcd.print(digitalRead(IR_SENSOR_4) == LOW ? "Occ" : "Avl");
+  delay(2000);
+}
